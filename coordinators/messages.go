@@ -13,6 +13,7 @@ import (
 type MessagesCoordinator interface {
 	Create(message *models.Message) error
 	MarkDeleted(deleteWhen string, messageIDs []int) error
+	Read(messageID int) (*models.Message, error)
 }
 
 type messagesCoordinator struct {
@@ -57,4 +58,18 @@ WHERE id = %D`), deleteWhen, i, id)).Error
 		fmt.Println("Marked message as deleted!")
 	}
 	return nil
+}
+
+// Read retrieves a message from the database by its ID.
+// Returns the Message if found, otherwise returns an error.
+func (m messagesCoordinator) Read(messageID int) (*models.Message, error) {
+	var message models.Message
+
+	// Attempt to find the message with the given ID
+	err := m.db.Table("client_messages").Where("id = ?", messageID).First(&message).Error
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to read message with ID %d", messageID)
+	}
+
+	return &message, nil
 }

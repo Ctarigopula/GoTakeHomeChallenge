@@ -1,8 +1,11 @@
 package controllers
 
 import (
+	"context"
+	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/render"
@@ -91,5 +94,36 @@ func (m *MessagesController) delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *MessagesController) read(w http.ResponseWriter, r *http.Request) {
-	// TODO Implement.
+	ctx := r.Context()
+	l, ok := ctx.Value(middleware.KeyLogger).(*slog.Logger)
+	if !ok {
+		http.Error(w, "Logger missing in context", http.StatusInternalServerError)
+		return
+	}
+	res := Response{}
+
+	// Extract and validate messageID from URL
+	messageID := chi.URLParam(r, "messageID")
+	id, err := strconv.Atoi(messageID)
+	if err != nil {
+		res.BadRequest(w, r, "Invalid message ID")
+		return
+	}
+
+	// Retrieve the message
+	msg, err := m.coordinator.Read(id)
+	if err != nil {
+		switch {
+		case coordinators.IsRecordNotFoundError(err):
+			res.NotFound(w, r, "Message not found")
+		case errors.Is(err, context.DeadlineExceeded):
+			res.InternalServerError(w, r, "Request timed out")
+		default:
+			l.ErrorContext(r.Context(), "Failed to read message", "error", err)
+			res.InternalServerError(w, r, "Could not read message")
+		}
+		return
+	}
+
+	res.JSON(w, r, msg, http.StatusOK)
 }
