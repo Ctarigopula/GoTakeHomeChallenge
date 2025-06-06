@@ -3,6 +3,7 @@ package controllers
 import (
 	"fmt"
 	"net/http"
+	"reflect"
 	"testing"
 
 	"take-home-challenge/models"
@@ -58,6 +59,17 @@ func TestMessagesController_Routes(t *testing.T) {
 		t.Fatalf("Expected status code %d, got %d", http.StatusCreated, resp.StatusCode)
 	}
 
+	url = fmt.Sprintf("%s/api/v2/messages/3", server.URL)
+	req, _ = http.NewRequest(http.MethodGet, url, nil)
+	resp, _ = http.DefaultClient.Do(req)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Expected status code %d, got %d", http.StatusOK, resp.StatusCode)
+	}
+	m := fromBody[*models.Message](resp)
+	if !reflect.DeepEqual(m, message) {
+		t.Fatalf("Expected user %v, got %v", message, m)
+	}
+
 	url = fmt.Sprintf("%s/api/v2/messages/delete", server.URL)
 	data := &payloads.MessagesMarkDeleted{
 		IDs:         []int{3, 2},
@@ -68,4 +80,5 @@ func TestMessagesController_Routes(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("Expected status code %d, got %d", http.StatusOK, resp.StatusCode)
 	}
+
 }
