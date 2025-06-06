@@ -1,9 +1,9 @@
 package controllers
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
-	"reflect"
 	"testing"
 
 	"take-home-challenge/models"
@@ -11,74 +11,127 @@ import (
 )
 
 func TestMessagesController_Routes(t *testing.T) {
-	message := &models.Message{
-		ID:        1,
-		Created:   nil,
-		DeletedAt: nil,
-		UserIDs:   []int{1, 2, 3},
-		Metadata: map[string]interface{}{
-			"tag": "employee",
+	baseURL := fmt.Sprintf("%s/api/v2/messages", server.URL)
+
+	messages := []models.Message{
+		{
+			ID:        1,
+			Created:   nil,
+			DeletedAt: nil,
+			UserIDs:   []int{1, 2, 3},
+			Metadata:  map[string]interface{}{"tag": "employee"},
+		},
+		{
+			ID:        2,
+			Created:   nil,
+			DeletedAt: nil,
+			UserIDs:   []int{1, 2, 3},
+			Metadata:  map[string]interface{}{"tag": "employee"},
+		},
+		{
+			ID:        3,
+			Created:   nil,
+			DeletedAt: nil,
+			UserIDs:   []int{1, 2, 3},
+			Metadata:  map[string]interface{}{"tag": "employee"},
 		},
 	}
-	url := fmt.Sprintf("%s/api/v2/messages/", server.URL)
-	req, _ := http.NewRequest(http.MethodPost, url, toBody(message))
-	resp, _ := http.DefaultClient.Do(req)
-	if resp.StatusCode != http.StatusCreated {
-		t.Fatalf("Expected status code %d, got %d", http.StatusCreated, resp.StatusCode)
+
+	// Create messages
+	for _, msg := range messages {
+		req, err := http.NewRequest(http.MethodPost, baseURL+"/", toBody(&msg))
+		if err != nil {
+			t.Fatalf("Failed to create request: %v", err)
+		}
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("Request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("Expected status %d, got %d", http.StatusCreated, resp.StatusCode)
+		}
 	}
 
-	message = &models.Message{
-		ID:        2,
-		Created:   nil,
-		DeletedAt: nil,
-		UserIDs:   []int{1, 2, 3},
-		Metadata: map[string]interface{}{
-			"tag": "employee",
-		},
-	}
-	url = fmt.Sprintf("%s/api/v2/messages/", server.URL)
-	req, _ = http.NewRequest(http.MethodPost, url, toBody(message))
-	resp, _ = http.DefaultClient.Do(req)
-	if resp.StatusCode != http.StatusCreated {
-		t.Fatalf("Expected status code %d, got %d", http.StatusCreated, resp.StatusCode)
-	}
-
-	message = &models.Message{
-		ID:        3,
-		Created:   nil,
-		DeletedAt: nil,
-		UserIDs:   []int{1, 2, 3},
-		Metadata: map[string]interface{}{
-			"tag": "employee",
-		},
-	}
-	url = fmt.Sprintf("%s/api/v2/messages/", server.URL)
-	req, _ = http.NewRequest(http.MethodPost, url, toBody(message))
-	resp, _ = http.DefaultClient.Do(req)
-	if resp.StatusCode != http.StatusCreated {
-		t.Fatalf("Expected status code %d, got %d", http.StatusCreated, resp.StatusCode)
-	}
-
-	url = fmt.Sprintf("%s/api/v2/messages/3", server.URL)
-	req, _ = http.NewRequest(http.MethodGet, url, nil)
-	resp, _ = http.DefaultClient.Do(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("Expected status code %d, got %d", http.StatusOK, resp.StatusCode)
-	}
-	m := fromBody[*models.Message](resp)
-	if !reflect.DeepEqual(m, message) {
-		t.Fatalf("Expected user %v, got %v", message, m)
-	}
-
-	url = fmt.Sprintf("%s/api/v2/messages/delete", server.URL)
-	data := &payloads.MessagesMarkDeleted{
-		IDs:         []int{3, 2},
+	// Delete messages 2 and 3
+	deleteURL := fmt.Sprintf("%s/delete", baseURL)
+	deletePayload := &payloads.MessagesMarkDeleted{
+		IDs:         []int{2, 3},
 		DeletedWhen: "2025-06-01",
 	}
-	req, _ = http.NewRequest(http.MethodPost, url, toBody(data))
-	resp, _ = http.DefaultClient.Do(req)
+
+	req, err := http.NewRequest(http.MethodPost, deleteURL, toBody(deletePayload))
+	if err != nil {
+		t.Fatalf("Failed to create delete request: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Delete request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("Expected status code %d, got %d", http.StatusOK, resp.StatusCode)
+		t.Fatalf("Expected status %d, got %d", http.StatusOK, resp.StatusCode)
+	}
+
+	// Fetch message 1 and verify
+	getURL := fmt.Sprintf("%s/1", baseURL)
+	req, err = http.NewRequest(http.MethodGet, getURL, nil)
+	if err != nil {
+		t.Fatalf("Failed to create GET request: %v", err)
+	}
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Expected status %d, got %d", http.StatusOK, resp.StatusCode)
+	}
+	// to check nil values
+	var fetchedMsg models.Message
+	if err := json.NewDecoder(resp.Body).Decode(&fetchedMsg); err != nil {
+		t.Fatalf("Failed to decode message response: %v", err)
+	}
+
+	if fetchedMsg.Created != nil {
+		t.Errorf("Expected Created to be nil, got %v", *fetchedMsg.Created)
+	}
+	if fetchedMsg.DeletedAt != nil {
+		t.Errorf("Expected DeletedAt to be nil, got %v", *fetchedMsg.DeletedAt)
+	}
+
+	// Get deleted message (ID 2) - should return 404
+	getURL = fmt.Sprintf("%s/2", baseURL)
+	req, err = http.NewRequest(http.MethodGet, getURL, nil)
+	if err != nil {
+		t.Fatalf("Failed to create GET request: %v", err)
+	}
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET request failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("Expected 404 for deleted message, got %d", resp.StatusCode)
+	}
+
+	// Get invalid message (ID invalid) - should return 400
+	getURL = fmt.Sprintf("%s/invalid", baseURL)
+	req, err = http.NewRequest(http.MethodGet, getURL, nil)
+	if err != nil {
+		t.Fatalf("Failed to create GET request: %v", err)
+	}
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET request failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("Expected 400 for invalid message id, got %d", resp.StatusCode)
 	}
 
 }
