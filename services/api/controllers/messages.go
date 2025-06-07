@@ -26,12 +26,14 @@ type MessagesController struct {
 	coordinator coordinators.MessagesCoordinator
 }
 
+// NewMessagesController creates and returns a new MessagesController with the given configuration.
 func NewMessagesController(conf configuration.Config) *MessagesController {
 	return &MessagesController{
 		coordinator: conf.MessagesCoordinator,
 	}
 }
 
+// getLogger retrieves the logger from the context or returns the default logger if none is found.
 func getLogger(ctx context.Context) *slog.Logger {
 	logger, ok := ctx.Value(middleware.KeyLogger).(*slog.Logger)
 	if !ok {
@@ -40,6 +42,7 @@ func getLogger(ctx context.Context) *slog.Logger {
 	return logger
 }
 
+// Routes defines message-related HTTP endpoints with JSON responses.
 func (m *MessagesController) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -51,6 +54,8 @@ func (m *MessagesController) Routes() chi.Router {
 	return r
 }
 
+// create handles HTTP requests to create a new message.Validates the request payload,
+// and responds with appropriate HTTP status codes and error messages.
 func (m *MessagesController) create(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := getLogger(ctx)
@@ -81,6 +86,7 @@ func (m *MessagesController) create(w http.ResponseWriter, r *http.Request) {
 	res.JSON(w, r, nil, http.StatusCreated)
 }
 
+// delete handles message deletion requests, validates the input and marks the given messages as deleted.
 func (m *MessagesController) delete(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := getLogger(ctx)
@@ -107,6 +113,8 @@ func (m *MessagesController) delete(w http.ResponseWriter, r *http.Request) {
 	res.JSON(w, r, nil, http.StatusOK)
 }
 
+// read handles GET /messages/{messageID} requests. It validates the message ID, fetches the message from the database,
+// and returns the result or appropriate error response.
 func (m *MessagesController) read(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := getLogger(ctx)
