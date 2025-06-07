@@ -70,6 +70,6 @@ func (m messagesCoordinator) Read(messageID int) (*models.Message, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to read message with ID %d", messageID)
 	}
-
+	fmt.Println("Found the message!")
 	return &message, nil
 }

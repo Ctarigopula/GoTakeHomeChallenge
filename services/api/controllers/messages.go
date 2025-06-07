@@ -17,6 +17,11 @@ import (
 	"take-home-challenge/services/api/controllers/payloads"
 )
 
+const (
+	ErrInvalidPayload = "Invalid request payload. Please check the JSON format and required fields."
+	ErrInvalidMessage = "Invalid message data. Please ensure all fields are correct."
+)
+
 type MessagesController struct {
 	coordinator coordinators.MessagesCoordinator
 }
@@ -25,6 +30,14 @@ func NewMessagesController(conf configuration.Config) *MessagesController {
 	return &MessagesController{
 		coordinator: conf.MessagesCoordinator,
 	}
+}
+
+func getLogger(ctx context.Context) *slog.Logger {
+	logger, ok := ctx.Value(middleware.KeyLogger).(*slog.Logger)
+	if !ok {
+		return slog.Default()
+	}
+	return logger
 }
 
 func (m *MessagesController) Routes() chi.Router {
@@ -40,26 +53,28 @@ func (m *MessagesController) Routes() chi.Router {
 
 func (m *MessagesController) create(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	l := ctx.Value(middleware.KeyLogger).(*slog.Logger)
-
+	logger := getLogger(ctx)
 	res := Response{}
 
-	data := &models.Message{}
-	if err := render.Bind(r, data); err != nil {
-		res.BadRequest(w, r, err.Error())
+	message := &models.Message{}
+	if err := render.Bind(r, message); err != nil {
+		logger.WarnContext(ctx, "Invalid request body", "error", err)
+		res.BadRequest(w, r, ErrInvalidPayload)
 		return
 	}
 
-	if err := m.coordinator.Create(data); err != nil {
-		if coordinators.IsValidationError(err) {
-			res.BadRequest(w, r, err.Error())
-			return
+	// Create the message
+	if err := m.coordinator.Create(message); err != nil {
+		switch {
+		case coordinators.IsValidationError(err):
+			logger.WarnContext(ctx, "Validation failed", "error", err)
+			res.BadRequest(w, r, ErrInvalidMessage)
+		case errors.Is(err, context.DeadlineExceeded):
+			res.InternalServerError(w, r, "Request timed out")
+		default:
+			logger.ErrorContext(ctx, "Failed to create message", "error", err)
+			res.InternalServerError(w, r, "Could not create message")
 		}
-
-		l.InfoContext(ctx, "Failed to create user.",
-			"error", err,
-		)
-		res.InternalServerError(w, r, err.Error())
 		return
 	}
 
@@ -68,25 +83,24 @@ func (m *MessagesController) create(w http.ResponseWriter, r *http.Request) {
 
 func (m *MessagesController) delete(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	l := ctx.Value(middleware.KeyLogger).(*slog.Logger)
-
+	logger := getLogger(ctx)
 	res := Response{}
 
 	data := &payloads.MessagesMarkDeleted{}
 	if err := render.Bind(r, data); err != nil {
-		res.BadRequest(w, r, err.Error())
+		logger.WarnContext(ctx, "Invalid delete request", "error", err)
+		res.BadRequest(w, r, ErrInvalidPayload)
 		return
 	}
 
 	if err := m.coordinator.MarkDeleted(data.DeletedWhen, data.IDs); err != nil {
 		if coordinators.IsValidationError(err) {
-			res.BadRequest(w, r, err.Error())
+			logger.WarnContext(ctx, "Validation failed", "error", err)
+			res.BadRequest(w, r, ErrInvalidMessage)
 			return
 		}
-		l.InfoContext(ctx, "Failed to mark messages as deleted.",
-			"error", err,
-		)
-		res.InternalServerError(w, r, err.Error())
+		logger.InfoContext(ctx, "Failed to mark messages as deleted.", "error", err)
+		res.InternalServerError(w, r, "Could not mark messages as deleted.")
 		return
 	}
 
@@ -95,11 +109,7 @@ func (m *MessagesController) delete(w http.ResponseWriter, r *http.Request) {
 
 func (m *MessagesController) read(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	l, ok := ctx.Value(middleware.KeyLogger).(*slog.Logger)
-	if !ok {
-		http.Error(w, "Logger missing in context", http.StatusInternalServerError)
-		return
-	}
+	logger := getLogger(ctx)
 	res := Response{}
 
 	// Extract and validate messageID from URL
@@ -119,7 +129,7 @@ func (m *MessagesController) read(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, context.DeadlineExceeded):
 			res.InternalServerError(w, r, "Request timed out")
 		default:
-			l.ErrorContext(r.Context(), "Failed to read message", "error", err)
+			logger.ErrorContext(r.Context(), "Failed to read message", "error", err)
 			res.InternalServerError(w, r, "Could not read message")
 		}
 		return
