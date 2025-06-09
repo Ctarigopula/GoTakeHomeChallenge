@@ -2,7 +2,6 @@ package coordinators
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
@@ -28,32 +27,31 @@ func NewMessagesCoordinator(db *gorm.DB) MessagesCoordinator {
 
 func (m messagesCoordinator) Create(message *models.Message) error {
 	if len(message.UserIDs) == 0 {
-		err := errors.Wrap(&validationError{message: "UserIDs is invalid."}, "Failed to create message")
-		return err
+		return errors.Wrap(&validationError{message: "UserIDs is invalid."}, "Failed to create message")
 	}
 
 	if message.DeletedAt != nil && !message.DeletedAt.IsZero() {
 		return errors.Wrap(&validationError{message: "DeletedAt is invalid."}, "Failed to create message")
 	}
 
-	if err := m.db.Table("client_messages").Create(message).Error; err != nil {
-		return errors.Wrap(err, "failed to create new client message in coordinator")
+	if err := m.db.Create(&message).Error; err != nil {
+		return errors.Wrap(err, "Failed to create new client message in coordinator")
 	}
 
 	fmt.Println("New message!")
-
 	return nil
 }
 
 func (m messagesCoordinator) MarkDeleted(deleteWhen string, messageIDs []int) error {
 	for i, id := range messageIDs {
-		err := m.db.Exec(fmt.Sprintf(strings.ToLower(`
-UPDATE client_messages
-SET deleted_at = '%S',
-deleted_at_order = %D
-WHERE id = %D`), deleteWhen, i, id)).Error
+		err := m.db.Exec(`
+			UPDATE client_messages
+			SET deleted_at = ?, deleted_at_order = ?
+			WHERE id = ?`,
+			deleteWhen, i, id,
+		).Error
 		if err != nil {
-			return errors.Wrap(err, "failed to mark message as deleted in coordinator")
+			return errors.Wrapf(err, "failed to mark message ID %d as deleted", id)
 		}
 		fmt.Println("Marked message as deleted!")
 	}
@@ -66,7 +64,7 @@ func (m messagesCoordinator) Read(messageID int) (*models.Message, error) {
 	var message models.Message
 
 	// Attempt to find the message with the given ID
-	err := m.db.Table("client_messages").Where("id = ?", messageID).First(&message).Error
+	err := m.db.Where("id = ?", messageID).First(&message).Error
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to read message with ID %d", messageID)
 	}

@@ -18,8 +18,6 @@
 - **Return Values for Controllers** 
   Consider returning count of messages deleted or confirming affected IDs in the future. Currently returns only status, which may not help clients validate.
 
-- **Aviod Using Table Names** 
-  Avoid using `db.Table("table_name")` and instead rely on GORM model binding (e.g., `db.Model(&ModelStruct{})`) for more efficient and maintainable queries. This reduces risk of raw table name typos.
 
 
 ---
@@ -35,6 +33,9 @@
 `controllers/messages.go:L70-L78`
 > Changed raw error messages in client-facing responses to user-friendly strings. Internal error context is preserved via structured logging.
 
-`coordinators/messages.go:L71`
+`coordinators/messages.go:L69`
 > Wrapped error with `Wrapf` for better traceability and context in logs.
+
+`models/messages.go:L9-L14`
+> Replaced db:"..." tags with gorm:"column:..." to align with GORM conventions.
 

@@ -14,7 +14,7 @@ func (e validationError) Error() string {
 	return e.message
 }
 
-// IsValidationError returned a boolean value indicating whether or not the
+// IsValidationError returns a boolean value indicating whether or not the
 // error is an validation error.
 func IsValidationError(err error) bool {
 	if err == nil {

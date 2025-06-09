@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	"fmt"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -72,17 +72,17 @@ func (r *Response) Render(w http.ResponseWriter, req *http.Request) error {
 	return nil
 }
 
-// BadRequest retuns the HTTP status code 400, bad request
+// BadRequest returns the HTTP status code 400, bad request
 func (r *Response) BadRequest(w http.ResponseWriter, req *http.Request, message string) {
 	r.statusCode = http.StatusBadRequest
-	r.Error = fmt.Errorf(message)
+	r.Error = errors.New(message)
 	r.Render(w, req)
 }
 
-// InternalServerError retuns the HTTP status code 500, internal server error
+// InternalServerError returns the HTTP status code 500, internal server error
 func (r *Response) InternalServerError(w http.ResponseWriter, req *http.Request, message string) {
 	r.statusCode = http.StatusInternalServerError
-	r.Error = fmt.Errorf(message)
+	r.Error = errors.New(message)
 	r.Render(w, req)
 }
 
@@ -106,6 +106,6 @@ func (r *Response) Set(key string, value interface{}) {
 // NotFound retuns the HTTP status code 404, page not found
 func (r *Response) NotFound(w http.ResponseWriter, req *http.Request, message string) {
 	r.statusCode = http.StatusNotFound
-	r.Error = fmt.Errorf(message)
+	r.Error = errors.New(message)
 	r.Render(w, req)
 }
